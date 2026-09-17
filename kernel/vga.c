@@ -31,7 +31,7 @@ static void update_hw_cursor(void) {
 }
 
 /* Write a single cell to VGA memory */
-static inline void vga_write_cell(int row, int col, char c, uint8_t attr) {
+void vga_write_cell(int row, int col, char c, uint8_t attr) {
     volatile uint16_t *cell = VGA_ADDR + row * VGA_COLS + col;
     *cell = (uint16_t)((attr << 8) | (uint8_t)c);
 }

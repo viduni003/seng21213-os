@@ -15,6 +15,7 @@ typedef enum {
     PROC_UNUSED,     /* slot not in use */
     PROC_READY,
     PROC_RUNNING,
+    PROC_BLOCKED,
     PROC_TERMINATED
 } proc_state_t;
 
@@ -28,5 +29,8 @@ typedef struct pcb {
 
 void   process_init(void);
 pcb_t *create_process(void (*entry)(void), const char *name);
+int    process_kill(uint32_t pid);
+void   process_print_table(void);
+pcb_t *process_get_by_pid(uint32_t pid);
 
 #endif /* PROCESS_H */

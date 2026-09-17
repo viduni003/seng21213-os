@@ -22,9 +22,6 @@ static inline void io_wait(void) {
 #define PIC_EOI   0x20
 
 void pic_remap(void) {
-    uint8_t mask1 = inb(PIC1_DATA);
-    uint8_t mask2 = inb(PIC2_DATA);
-
     outb(PIC1_CMD, ICW1_INIT | ICW1_ICW4); io_wait();
     outb(PIC2_CMD, ICW1_INIT | ICW1_ICW4); io_wait();
 
@@ -37,8 +34,9 @@ void pic_remap(void) {
     outb(PIC1_DATA, ICW4_8086); io_wait();
     outb(PIC2_DATA, ICW4_8086); io_wait();
 
-    outb(PIC1_DATA, mask1);
-    outb(PIC2_DATA, mask2);
+    /* Mask all interrupts initially; explicitly unmask only what we need */
+    outb(PIC1_DATA, 0xFF);
+    outb(PIC2_DATA, 0xFF);
 }
 
 void pic_send_eoi(uint8_t irq) {

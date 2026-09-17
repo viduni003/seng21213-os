@@ -23,6 +23,13 @@ void scheduler_add_process(pcb_t *p) {
     }
 }
 
+pcb_t *scheduler_get_current(void) {
+    if (current_task >= 0 && current_task < task_count) {
+        return task_list[current_task];
+    }
+    return NULL;
+}
+
 void irq0_handler(void) {
     tick_count++;
     pic_send_eoi(0);
@@ -32,11 +39,28 @@ void irq0_handler(void) {
     }
 
     int prev = current_task;
-    current_task = (current_task + 1) % task_count;
 
-    if (prev == current_task) {
+    /* Find next runnable task in round-robin order */
+    int next_task = current_task;
+    int found = 0;
+    for (int i = 0; i < task_count; i++) {
+        next_task = (next_task + 1) % task_count;
+        if (task_list[next_task]->state == PROC_READY ||
+            task_list[next_task]->state == PROC_RUNNING) {
+            found = 1;
+            break;
+        }
+    }
+
+    if (!found) {
         return;
     }
+
+    if (prev == next_task) {
+        return;
+    }
+
+    current_task = next_task;
 
     uint32_t *old_esp_ptr;
     uint32_t  new_esp;
@@ -45,7 +69,9 @@ void irq0_handler(void) {
         static uint32_t dummy;
         old_esp_ptr = &dummy;
     } else {
-        task_list[prev]->state = PROC_READY;
+        if (task_list[prev]->state == PROC_RUNNING) {
+            task_list[prev]->state = PROC_READY;
+        }
         old_esp_ptr = &task_list[prev]->esp;
     }
 

@@ -38,6 +38,8 @@ static void cmd_clear(void);
 static void cmd_about(void);
 static void cmd_echo(const char *args);
 static void cmd_mem(void);
+static void cmd_ps(void);
+static void cmd_kill(const char *args);
 
 /* ---------------------------------------------------------------------------
  * Utility: minimal string helpers (no libc in a freestanding kernel!)
@@ -164,6 +166,36 @@ static void cmd_mem(void) {
                    VGA_YELLOW, VGA_BLACK);
 }
 
+static void cmd_ps(void) {
+    process_print_table();
+}
+
+static void cmd_kill(const char *args) {
+    args = k_ltrim(args);
+    if (*args == '\0') {
+        vga_puts_color("  Usage: kill <pid>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    uint32_t pid = 0;
+    while (*args >= '0' && *args <= '9') {
+        pid = pid * 10 + (uint32_t)(*args - '0');
+        args++;
+    }
+    if (pid == 0) {
+        vga_puts_color("  Invalid PID.\n", VGA_LIGHT_RED, VGA_BLACK);
+        return;
+    }
+    if (pid == 1) {
+        vga_puts_color("  Cannot terminate shell (PID 1).\n", VGA_LIGHT_RED, VGA_BLACK);
+        return;
+    }
+    if (process_kill(pid) == 0) {
+        vga_puts_color("  Process terminated.\n", VGA_LIGHT_GREEN, VGA_BLACK);
+    } else {
+        vga_puts_color("  Process not found or already terminated.\n", VGA_LIGHT_RED, VGA_BLACK);
+    }
+}
+
 /* ---------------------------------------------------------------------------
  * Shell process
  * --------------------------------------------------------------------------*/
@@ -187,16 +219,20 @@ static void shell_run(void) {
         if (k_strcmp(cmd, "clear") == 0) { cmd_clear(); continue; }
         if (k_strcmp(cmd, "about") == 0) { cmd_about(); continue; }
         if (k_strcmp(cmd, "mem")   == 0) { cmd_mem();   continue; }
+        if (k_strcmp(cmd, "ps")    == 0) { cmd_ps();    continue; }
 
         if (k_strncmp(cmd, "echo ", 5) == 0) {
             cmd_echo(k_ltrim(cmd + 5));
             continue;
         }
 
+        if (k_strncmp(cmd, "kill ", 5) == 0 || k_strcmp(cmd, "kill") == 0) {
+            cmd_kill(cmd + 4);
+            continue;
+        }
+
         /* Milestone stubs */
-        if (k_strcmp(cmd, "ps")      == 0 ||
-            k_strcmp(cmd, "kill")    == 0 ||
-            k_strcmp(cmd, "threads") == 0 ||
+        if (k_strcmp(cmd, "threads") == 0 ||
             k_strcmp(cmd, "free")    == 0 ||
             k_strcmp(cmd, "ls")      == 0 ||
             k_strcmp(cmd, "cat")     == 0) {
@@ -218,20 +254,33 @@ static void shell_run(void) {
 extern void task_a(void);
 extern void task_b(void);
 
+static void shell_task(void) {
+    print_splash();
+    shell_run();
+    while (1) {
+        __asm__ __volatile__("hlt");
+    }
+}
+
 void kernel_main(void) {
     vga_init();
     kb_init();
     idt_init();
     pic_remap();
     pit_init(100);
+    process_init();
     scheduler_init();
+
+    /* Register shell as PID 1, and test tasks as PID 2 and 3 */
+    scheduler_add_process(create_process(shell_task, "shell"));
     scheduler_add_process(create_process(task_a, "task_a"));
     scheduler_add_process(create_process(task_b, "task_b"));
+
     pic_unmask_irq(0);
     __asm__ __volatile__("sti");
-    print_splash();
-    shell_run();
 
-    /* Should never reach here */
-    __asm__ __volatile__("hlt");
+    /* Idle loop for boot thread */
+    while (1) {
+        __asm__ __volatile__("hlt");
+    }
 }
