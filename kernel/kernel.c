@@ -24,7 +24,11 @@
 #include "vga.h"
 #include "keyboard.h"
 #include "../include/types.h"
+#include "idt.h"
+#include "pic.h"
 
+#include "pit.h"
+#include "scheduler.h"
 /* ---------------------------------------------------------------------------
  * Forward declarations of shell commands
  * --------------------------------------------------------------------------*/
@@ -213,6 +217,12 @@ static void shell_run(void) {
 void kernel_main(void) {
     vga_init();
     kb_init();
+    idt_init();
+    pic_remap();
+    pit_init(100);
+    scheduler_init();
+    pic_unmask_irq(0);
+    __asm__ __volatile__("sti");
     print_splash();
     shell_run();
 

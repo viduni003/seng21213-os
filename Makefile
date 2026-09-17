@@ -49,7 +49,11 @@ KERNEL_ASM_OBJ := build/kernel_entry.o
 
 KERNEL_C_SRCS  := kernel/kernel.c \
                    kernel/vga.c    \
-                   kernel/keyboard.c
+                   kernel/keyboard.c \
+                   kernel/idt.c \
+                   kernel/pic.c \
+                   kernel/pit.c \
+                   kernel/scheduler.c
 
 # Add your new source files below as the course progresses:
 # Lecture 09: kernel/process.c kernel/scheduler.c
@@ -100,7 +104,7 @@ build/%.o: kernel/%.c
 # ---------------------------------------------------------------------------
 # Link kernel ELF, then extract flat binary
 # ---------------------------------------------------------------------------
-$(KERNEL_ELF): $(KERNEL_ASM_OBJ) $(KERNEL_C_OBJS)
+$(KERNEL_ELF): $(KERNEL_ASM_OBJ) build/idt_flush.o build/irq_stubs.o $(KERNEL_C_OBJS)
 	@echo "  [LD]  $@"
 	$(LD) $(LDFLAGS) -T linker.ld $^ -o $@
 
@@ -139,3 +143,19 @@ info:
 clean:
 	rm -rf build $(OS_IMAGE)
 	@echo "  Cleaned."
+
+# ---------------------------------------------------------------------------
+# Additional Stage 1 assembly object: idt_flush.asm
+# ---------------------------------------------------------------------------
+build/idt_flush.o: boot/idt_flush.asm
+	@mkdir -p build
+	@echo "  [AS]  boot/idt_flush.asm"
+	$(AS) $(ASFLAGS) boot/idt_flush.asm -o build/idt_flush.o
+
+# ---------------------------------------------------------------------------
+# Additional Stage 1 assembly object: irq_stubs.asm
+# ---------------------------------------------------------------------------
+build/irq_stubs.o: boot/irq_stubs.asm
+	@mkdir -p build
+	@echo "  [AS]  boot/irq_stubs.asm"
+	$(AS) $(ASFLAGS) boot/irq_stubs.asm -o build/irq_stubs.o
