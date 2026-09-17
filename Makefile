@@ -53,10 +53,12 @@ KERNEL_C_SRCS  := kernel/kernel.c \
                    kernel/idt.c \
                    kernel/pic.c \
                    kernel/pit.c \
-                   kernel/scheduler.c
+                   kernel/scheduler.c \
+                   kernel/process.c \
+                   kernel/test_tasks.c
 
 # Add your new source files below as the course progresses:
-# Lecture 09: kernel/process.c kernel/scheduler.c
+# Lecture  9: kernel/process.c kernel/scheduler.c kernel/test_tasks.c
 # Lecture 10: kernel/thread.c  kernel/mutex.c
 # Lecture 11: kernel/pmm.c     kernel/vmm.c
 # Lecture 12: kernel/fs.c
@@ -104,7 +106,7 @@ build/%.o: kernel/%.c
 # ---------------------------------------------------------------------------
 # Link kernel ELF, then extract flat binary
 # ---------------------------------------------------------------------------
-$(KERNEL_ELF): $(KERNEL_ASM_OBJ) build/idt_flush.o build/irq_stubs.o $(KERNEL_C_OBJS)
+$(KERNEL_ELF): $(KERNEL_ASM_OBJ) build/idt_flush.o build/irq_stubs.o build/switch.o build/task_start.o $(KERNEL_C_OBJS)
 	@echo "  [LD]  $@"
 	$(LD) $(LDFLAGS) -T linker.ld $^ -o $@
 
@@ -159,3 +161,19 @@ build/irq_stubs.o: boot/irq_stubs.asm
 	@mkdir -p build
 	@echo "  [AS]  boot/irq_stubs.asm"
 	$(AS) $(ASFLAGS) boot/irq_stubs.asm -o build/irq_stubs.o
+
+# ---------------------------------------------------------------------------
+# Additional Stage 1 assembly object: switch.asm
+# ---------------------------------------------------------------------------
+build/switch.o: boot/switch.asm
+	@mkdir -p build
+	@echo "  [AS]  boot/switch.asm"
+	$(AS) $(ASFLAGS) boot/switch.asm -o build/switch.o
+
+# ---------------------------------------------------------------------------
+# Additional Stage 1 assembly object: task_start.asm
+# ---------------------------------------------------------------------------
+build/task_start.o: boot/task_start.asm
+	@mkdir -p build
+	@echo "  [AS]  boot/task_start.asm"
+	$(AS) $(ASFLAGS) boot/task_start.asm -o build/task_start.o

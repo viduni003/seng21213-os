@@ -29,6 +29,7 @@
 
 #include "pit.h"
 #include "scheduler.h"
+#include "process.h"
 /* ---------------------------------------------------------------------------
  * Forward declarations of shell commands
  * --------------------------------------------------------------------------*/
@@ -214,6 +215,9 @@ static void shell_run(void) {
 /* ---------------------------------------------------------------------------
  * Kernel entry point – called from kernel_entry.asm
  * --------------------------------------------------------------------------*/
+extern void task_a(void);
+extern void task_b(void);
+
 void kernel_main(void) {
     vga_init();
     kb_init();
@@ -221,6 +225,8 @@ void kernel_main(void) {
     pic_remap();
     pit_init(100);
     scheduler_init();
+    scheduler_add_process(create_process(task_a, "task_a"));
+    scheduler_add_process(create_process(task_b, "task_b"));
     pic_unmask_irq(0);
     __asm__ __volatile__("sti");
     print_splash();
