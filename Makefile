@@ -59,16 +59,19 @@ KERNEL_C_SRCS  := kernel/kernel.c \
                    kernel/mutex.c \
                    kernel/semaphore.c \
                    kernel/producer_consumer.c \
-                   kernel/pmm.c
+                   kernel/pmm.c \
+                   kernel/fs.c
 
 # Add your new source files below as the course progresses:
 # Lecture  9: kernel/process.c kernel/scheduler.c kernel/test_tasks.c \
                    kernel/mutex.c \
                    kernel/semaphore.c \
                    kernel/producer_consumer.c \
-                   kernel/pmm.c
+                   kernel/pmm.c \
+                   kernel/fs.c
 # Lecture 10: kernel/thread.c  kernel/mutex.c
-# Lecture 11: kernel/pmm.c     kernel/vmm.c
+# Lecture 11: kernel/pmm.c \
+                   kernel/fs.c     kernel/vmm.c
 # Lecture 12: kernel/fs.c
 
 KERNEL_C_OBJS  := $(patsubst kernel/%.c, build/%.o, $(KERNEL_C_SRCS))

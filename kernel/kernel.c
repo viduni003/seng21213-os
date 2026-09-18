@@ -32,6 +32,7 @@
 #include "process.h"
 #include "producer_consumer.h"
 #include "pmm.h"
+#include "fs.h"
 /* ---------------------------------------------------------------------------
  * Forward declarations of shell commands
  * --------------------------------------------------------------------------*/
@@ -42,6 +43,11 @@ static void cmd_echo(const char *args);
 static void cmd_mem(void);
 static void cmd_ps(void);
 static void cmd_meminfo(void);
+static void cmd_ls(void);
+static void cmd_touch(const char *args);
+static void cmd_cat(const char *args);
+static void cmd_write(const char *args);
+static void cmd_rm(const char *args);
 static void cmd_memtest(void);
 static void cmd_kill(const char *args);
 static void cmd_race(void);
@@ -214,7 +220,94 @@ static void cmd_memtest(void) {
                        VGA_LIGHT_RED, VGA_BLACK);
     }
 }
+static void cmd_ls(void) {
+    fs_list();
+}
 
+static void cmd_touch(const char *args) {
+    args = k_ltrim(args);
+    if (*args == '\0') {
+        vga_puts_color("  Usage: touch <filename>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    if (fs_create(args) == -1) {
+        vga_puts_color("  Could not create file (already exists or table full).\n", VGA_LIGHT_RED, VGA_BLACK);
+    } else {
+        vga_puts_color("  File created: ", VGA_LIGHT_GREEN, VGA_BLACK);
+        vga_puts(args);
+        vga_puts("\n");
+    }
+}
+
+static void cmd_cat(const char *args) {
+    args = k_ltrim(args);
+    if (*args == '\0') {
+        vga_puts_color("  Usage: cat <filename>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    static char buf[4096];
+    int n = fs_read(args, buf, sizeof(buf) - 1);
+    if (n < 0) {
+        vga_puts_color("  File not found: ", VGA_LIGHT_RED, VGA_BLACK);
+        vga_puts(args);
+        vga_puts("\n");
+        return;
+    }
+    buf[n] = '\0';
+    vga_puts("\n  ");
+    vga_puts(buf);
+    vga_puts("\n\n");
+}
+
+static void cmd_write(const char *args) {
+    args = k_ltrim(args);
+    if (*args == '\0') {
+        vga_puts_color("  Usage: write <filename> <text>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    const char *p = args;
+    while (*p && *p != ' ') p++;
+    if (*p != ' ') {
+        vga_puts_color("  Usage: write <filename> <text>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    char filename[FS_MAX_FILENAME];
+    int flen = (int)(p - args);
+    if (flen >= FS_MAX_FILENAME) flen = FS_MAX_FILENAME - 1;
+    for (int i = 0; i < flen; i++) filename[i] = args[i];
+    filename[flen] = '\0';
+
+    const char *text = k_ltrim(p + 1);
+    int text_len = (int)k_strlen(text);
+
+    int written = fs_write(filename, text, (uint32_t)text_len);
+    if (written < 0) {
+        vga_puts_color("  Write failed: file not found or no space.\n", VGA_LIGHT_RED, VGA_BLACK);
+    } else {
+        vga_puts_color("  Wrote ", VGA_LIGHT_GREEN, VGA_BLACK);
+        vga_printf("%d", written);
+        vga_puts(" bytes to ");
+        vga_puts(filename);
+        vga_puts("\n");
+    }
+}
+
+static void cmd_rm(const char *args) {
+    args = k_ltrim(args);
+    if (*args == '\0') {
+        vga_puts_color("  Usage: rm <filename>\n", VGA_YELLOW, VGA_BLACK);
+        return;
+    }
+    if (fs_unlink(args) == -1) {
+        vga_puts_color("  File not found: ", VGA_LIGHT_RED, VGA_BLACK);
+        vga_puts(args);
+        vga_puts("\n");
+    } else {
+        vga_puts_color("  Removed: ", VGA_LIGHT_GREEN, VGA_BLACK);
+        vga_puts(args);
+        vga_puts("\n");
+    }
+}
 static void cmd_meminfo(void) {
     uint32_t total = pmm_total_frames();
     uint32_t used  = pmm_used_frames();
@@ -337,6 +430,11 @@ static void shell_run(void) {
         if (k_strcmp(cmd, "ps")    == 0) { cmd_ps();    continue; }
         if (k_strcmp(cmd, "meminfo") == 0) { cmd_meminfo(); continue; }
         if (k_strcmp(cmd, "memtest") == 0) { cmd_memtest(); continue; }
+        if (k_strcmp(cmd, "ls")    == 0) { cmd_ls();    continue; }
+        if (k_strncmp(cmd, "touch ", 6) == 0) { cmd_touch(cmd + 6); continue; }
+        if (k_strncmp(cmd, "cat ", 4) == 0) { cmd_cat(cmd + 4); continue; }
+        if (k_strncmp(cmd, "write ", 6) == 0) { cmd_write(cmd + 6); continue; }
+        if (k_strncmp(cmd, "rm ", 3) == 0) { cmd_rm(cmd + 3); continue; }
         if (k_strcmp(cmd, "race")  == 0) { cmd_race();  continue; }
 
         if (k_strncmp(cmd, "echo ", 5) == 0) {
@@ -390,6 +488,7 @@ void kernel_main(void) {
     scheduler_init();
     pc_init();
     pmm_init();
+    fs_init();
 
     /* Register shell as PID 1, producer/consumer threads as PID 2 and 3 */
     scheduler_add_process(create_process(shell_task, "shell"));
