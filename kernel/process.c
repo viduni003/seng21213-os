@@ -137,3 +137,7 @@ void process_print_table(void) {
     vga_putchar('\n');
 }
 
+
+pcb_t *create_thread(void (*entry)(void), const char *name) {
+    return create_process(entry, name);
+}

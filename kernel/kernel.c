@@ -30,6 +30,7 @@
 #include "pit.h"
 #include "scheduler.h"
 #include "process.h"
+#include "producer_consumer.h"
 /* ---------------------------------------------------------------------------
  * Forward declarations of shell commands
  * --------------------------------------------------------------------------*/
@@ -40,6 +41,7 @@ static void cmd_echo(const char *args);
 static void cmd_mem(void);
 static void cmd_ps(void);
 static void cmd_kill(const char *args);
+static void cmd_race(void);
 
 /* ---------------------------------------------------------------------------
  * Utility: minimal string helpers (no libc in a freestanding kernel!)
@@ -170,6 +172,41 @@ static void cmd_ps(void) {
     process_print_table();
 }
 
+static void cmd_race(void) {
+    vga_puts_color("\n  Race Condition Demo (unsynchronized shared counter)\n",
+                   VGA_YELLOW, VGA_BLACK);
+    vga_puts("  -----------------------------------------------\n");
+
+    race_reset_counter();
+
+    pcb_t *pa = create_thread(race_incrementer_a, "race_a");
+    pcb_t *pb = create_thread(race_incrementer_b, "race_b");
+    if (!pa || !pb) {
+        vga_puts_color("  Could not create race threads (table full).\n", VGA_LIGHT_RED, VGA_BLACK);
+        return;
+    }
+    scheduler_add_process(pa);
+    scheduler_add_process(pb);
+
+    uint32_t start_tick = scheduler_get_ticks();
+    while (scheduler_get_ticks() - start_tick < 300) {
+        __asm__ __volatile__("hlt");
+    }
+
+    process_kill(pa->pid);
+    process_kill(pb->pid);
+
+    uint32_t actual = race_get_counter();
+    vga_puts("  Two threads each incremented a shared counter with NO lock.\n");
+    vga_puts("  Actual final counter value: ");
+    vga_printf("%d\n", actual);
+    vga_puts_color("  If this were synchronized, every increment would count.\n",
+                   VGA_LIGHT_CYAN, VGA_BLACK);
+    vga_puts_color("  A lower value than expected proves lost updates from the race.\n",
+                   VGA_LIGHT_CYAN, VGA_BLACK);
+    vga_puts("\n");
+}
+
 static void cmd_kill(const char *args) {
     args = k_ltrim(args);
     if (*args == '\0') {
@@ -220,6 +257,7 @@ static void shell_run(void) {
         if (k_strcmp(cmd, "about") == 0) { cmd_about(); continue; }
         if (k_strcmp(cmd, "mem")   == 0) { cmd_mem();   continue; }
         if (k_strcmp(cmd, "ps")    == 0) { cmd_ps();    continue; }
+        if (k_strcmp(cmd, "race")  == 0) { cmd_race();  continue; }
 
         if (k_strncmp(cmd, "echo ", 5) == 0) {
             cmd_echo(k_ltrim(cmd + 5));
@@ -251,8 +289,8 @@ static void shell_run(void) {
 /* ---------------------------------------------------------------------------
  * Kernel entry point – called from kernel_entry.asm
  * --------------------------------------------------------------------------*/
-extern void task_a(void);
-extern void task_b(void);
+extern void producer_thread(void);
+extern void consumer_thread(void);
 
 static void shell_task(void) {
     print_splash();
@@ -270,16 +308,16 @@ void kernel_main(void) {
     pit_init(100);
     process_init();
     scheduler_init();
+    pc_init();
 
-    /* Register shell as PID 1, and test tasks as PID 2 and 3 */
+    /* Register shell as PID 1, producer/consumer threads as PID 2 and 3 */
     scheduler_add_process(create_process(shell_task, "shell"));
-    scheduler_add_process(create_process(task_a, "task_a"));
-    scheduler_add_process(create_process(task_b, "task_b"));
+    scheduler_add_process(create_thread(producer_thread, "producer"));
+    scheduler_add_process(create_thread(consumer_thread, "consumer"));
 
     pic_unmask_irq(0);
     __asm__ __volatile__("sti");
 
-    /* Idle loop for boot thread */
     while (1) {
         __asm__ __volatile__("hlt");
     }

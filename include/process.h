@@ -34,3 +34,8 @@ void   process_print_table(void);
 pcb_t *process_get_by_pid(uint32_t pid);
 
 #endif /* PROCESS_H */
+
+/* Threads share address space with the kernel (no isolation yet — that's
+   Stage 3's virtual memory). Functionally identical to create_process();
+   named separately to match L10 terminology in ps/threads output. */
+pcb_t *create_thread(void (*entry)(void), const char *name);

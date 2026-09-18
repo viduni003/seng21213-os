@@ -80,3 +80,7 @@ void irq0_handler(void) {
 
     switch_context(old_esp_ptr, new_esp);
 }
+
+uint32_t scheduler_get_ticks(void) {
+    return tick_count;
+}

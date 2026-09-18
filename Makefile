@@ -55,10 +55,16 @@ KERNEL_C_SRCS  := kernel/kernel.c \
                    kernel/pit.c \
                    kernel/scheduler.c \
                    kernel/process.c \
-                   kernel/test_tasks.c
+                   kernel/test_tasks.c \
+                   kernel/mutex.c \
+                   kernel/semaphore.c \
+                   kernel/producer_consumer.c
 
 # Add your new source files below as the course progresses:
-# Lecture  9: kernel/process.c kernel/scheduler.c kernel/test_tasks.c
+# Lecture  9: kernel/process.c kernel/scheduler.c kernel/test_tasks.c \
+                   kernel/mutex.c \
+                   kernel/semaphore.c \
+                   kernel/producer_consumer.c
 # Lecture 10: kernel/thread.c  kernel/mutex.c
 # Lecture 11: kernel/pmm.c     kernel/vmm.c
 # Lecture 12: kernel/fs.c
