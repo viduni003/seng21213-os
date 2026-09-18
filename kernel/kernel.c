@@ -31,6 +31,7 @@
 #include "scheduler.h"
 #include "process.h"
 #include "producer_consumer.h"
+#include "pmm.h"
 /* ---------------------------------------------------------------------------
  * Forward declarations of shell commands
  * --------------------------------------------------------------------------*/
@@ -40,6 +41,8 @@ static void cmd_about(void);
 static void cmd_echo(const char *args);
 static void cmd_mem(void);
 static void cmd_ps(void);
+static void cmd_meminfo(void);
+static void cmd_memtest(void);
 static void cmd_kill(const char *args);
 static void cmd_race(void);
 
@@ -168,6 +171,81 @@ static void cmd_mem(void) {
                    VGA_YELLOW, VGA_BLACK);
 }
 
+static void cmd_memtest(void) {
+    vga_puts_color("\n  Memory Allocator Stress Test (100 alloc/free cycles)\n",
+                   VGA_YELLOW, VGA_BLACK);
+    vga_puts("  -----------------------------------------------\n");
+
+    uint32_t free_before = pmm_free_frames();
+
+    uint32_t addrs[100];
+    int alloc_failures = 0;
+
+    for (int i = 0; i < 100; i++) {
+        addrs[i] = pmm_alloc_frame();
+        if (addrs[i] == 0) alloc_failures++;
+    }
+
+    uint32_t free_after_alloc = pmm_free_frames();
+
+    for (int i = 0; i < 100; i++) {
+        if (addrs[i] != 0) {
+            pmm_free_frame(addrs[i]);
+        }
+    }
+
+    uint32_t free_after_free = pmm_free_frames();
+
+    vga_puts("  Free frames before test : ");
+    vga_printf("%d", free_before);
+    vga_puts("\n  Free frames after 100 allocs : ");
+    vga_printf("%d", free_after_alloc);
+    vga_puts("\n  Free frames after 100 frees  : ");
+    vga_printf("%d", free_after_free);
+    vga_puts("\n  Allocation failures : ");
+    vga_printf("%d", alloc_failures);
+    vga_puts("\n\n");
+
+    if (free_after_free == free_before && alloc_failures == 0) {
+        vga_puts_color("  PASS: no memory leak detected, all 100 frames returned.\n\n",
+                       VGA_LIGHT_GREEN, VGA_BLACK);
+    } else {
+        vga_puts_color("  FAIL: frame count mismatch after alloc/free cycle.\n\n",
+                       VGA_LIGHT_RED, VGA_BLACK);
+    }
+}
+
+static void cmd_meminfo(void) {
+    uint32_t total = pmm_total_frames();
+    uint32_t used  = pmm_used_frames();
+    uint32_t free  = pmm_free_frames();
+
+    /* Each frame is 4KB; convert to KB then approximate MB for readability */
+    uint32_t total_kb = total * 4;
+    uint32_t used_kb  = used * 4;
+    uint32_t free_kb  = free * 4;
+
+    vga_puts_color("\n  Physical Memory Manager\n", VGA_YELLOW, VGA_BLACK);
+    vga_puts("  -----------------------------------------------\n");
+    vga_puts("  Total frames : ");
+    vga_printf("%d", total);
+    vga_puts("  (");
+    vga_printf("%d", total_kb);
+    vga_puts(" KB)\n");
+
+    vga_puts("  Used frames  : ");
+    vga_printf("%d", used);
+    vga_puts("  (");
+    vga_printf("%d", used_kb);
+    vga_puts(" KB)\n");
+
+    vga_puts("  Free frames  : ");
+    vga_printf("%d", free);
+    vga_puts("  (");
+    vga_printf("%d", free_kb);
+    vga_puts(" KB)\n\n");
+}
+
 static void cmd_ps(void) {
     process_print_table();
 }
@@ -257,6 +335,8 @@ static void shell_run(void) {
         if (k_strcmp(cmd, "about") == 0) { cmd_about(); continue; }
         if (k_strcmp(cmd, "mem")   == 0) { cmd_mem();   continue; }
         if (k_strcmp(cmd, "ps")    == 0) { cmd_ps();    continue; }
+        if (k_strcmp(cmd, "meminfo") == 0) { cmd_meminfo(); continue; }
+        if (k_strcmp(cmd, "memtest") == 0) { cmd_memtest(); continue; }
         if (k_strcmp(cmd, "race")  == 0) { cmd_race();  continue; }
 
         if (k_strncmp(cmd, "echo ", 5) == 0) {
@@ -309,6 +389,7 @@ void kernel_main(void) {
     process_init();
     scheduler_init();
     pc_init();
+    pmm_init();
 
     /* Register shell as PID 1, producer/consumer threads as PID 2 and 3 */
     scheduler_add_process(create_process(shell_task, "shell"));
